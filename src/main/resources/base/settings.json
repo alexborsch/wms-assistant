@@ -1,0 +1,24 @@
+{
+    "server": "192.168.155.200",
+    "update_server": "http://192.168.155.200/cwms/winterm/wms-term-stable.json",
+    "apps": [
+        {
+            "name": "OHE.WMS Terminal",
+            "path": "webterm",
+            "icon": "term.png",
+            "view_name": "Terminal"
+        },
+        {
+            "name": "OHE.WMS Web",
+            "path": "cwms",
+            "icon": "wms.png",
+            "view_name": "Web"
+        }
+    ],
+    "version": "0.4",
+    "release": "stable",
+    "log_dir": "logs",
+    "debug_file": "cdltermdebug.log",
+    "res_dir": "images"
+    
+}
