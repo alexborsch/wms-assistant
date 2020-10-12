@@ -3,9 +3,12 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtWebEngineWidgets import *
-from PyQt5.QtPrintSupport import *
+from PyQt5 import QtGui, QtWidgets, QtPrintSupport
+from PyQt5.QtPrintSupport import QPrintDialog, QPrinter, QPrintPreviewDialog
 
 from PyQt5.QtWidgets import QShortcut, QLabel, QHBoxLayout
+from PyQt5.QtCore import pyqtSlot, QEventLoop, QObject, QPointF, QUrl
+from PyQt5.QtGui import QPainter
 
 import os
 import sys
@@ -16,6 +19,15 @@ import time
 import logging
 import datetime
 
+from PyQt5.QtPrintSupport import QPrintDialog, QPrinter, QPrintPreviewDialog
+
+'''
+from PyQt5.QtCore import pyqtSlot, QEventLoop, QObject, QPointF, QUrl
+from PyQt5.QtGui import QPainter
+from PyQt5.QtWidgets import QApplication, QDialog, QPushButton, QVBoxLayout, QWidget
+from PyQt5.QtPrintSupport import QPrintDialog, QPrinter, QPrintPreviewDialog
+from PyQt5.QtWebEngineWidgets import QWebEnginePage, QWebEngineView
+'''
 
 now = datetime.datetime.now()
 global date_log
@@ -118,6 +130,65 @@ class UpdateDialog(QDialog):
 
         self.setLayout(layout)
 
+class PrintHandler(QObject):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.m_page = None
+        self.m_inPrintPreview = False
+
+    @property
+    def page(self):
+        return self.m_page
+
+    @page.setter
+    def page(self, page):
+        if isinstance(page, QWebEnginePage):
+            self.m_page = page
+            self.page.printRequested.connect(self.printPreview)
+        else:
+            raise TypeError("page must be a QWebEnginePage")
+            
+    @pyqtSlot()
+    def print(self):
+        printer = QPrinter(QPrinter.HighResolution)
+        dialog = QPrintDialog(printer, self.page.view())
+        if dialog.exec_() != QDialog.Accepted:
+            return
+        self.printDocument(printer)
+
+    @pyqtSlot()
+    def printPreview(self):
+        if self.page is None:
+            return
+        if self.m_inPrintPreview:
+            return
+        self.m_inPrintPreview = True
+        printer = QPrinter()
+        preview = QPrintPreviewDialog(printer, self.page.view())
+        preview.paintRequested.connect(self.printDocument)
+        preview.exec_()
+        self.m_inPrintPreview = False
+
+    @pyqtSlot(QPrinter)
+    def printDocument(self, printer):
+        result = False
+        loop = QEventLoop()
+
+        def printPreview(sucess):
+            nonlocal result
+            result = sucess
+            loop.quit()
+
+        self.page.print(printer, printPreview)
+        loop.exec_()
+        if not result:
+            painter = QPainter()
+            if painter.begin(printer):
+                font = painter.font()
+                font.setPixelSize(100)
+                painter.setFont(font)
+                painter.drawText(QPointF(10, 30), "Could not generate print preview.")
+                painter.end()
 
 class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
@@ -129,9 +200,7 @@ class MainWindow(QMainWindow):
         self.tabs.currentChanged.connect(self.current_tab_changed)
         self.tabs.setTabsClosable(True)
         self.tabs.tabCloseRequested.connect(self.close_current_tab)
-
         self.setCentralWidget(self.tabs)
-
         self.status = QStatusBar()
         self.setStatusBar(self.status)
 
@@ -175,7 +244,15 @@ class MainWindow(QMainWindow):
         wms_btn.setStatusTip(wms_app_name)
         wms_btn.triggered.connect(self.navigate_wms)
         navtb.addAction(wms_btn)
-
+        '''
+        print_action = QAction(QIcon(os.path.join(res_dir, 'printer.png')), "Print...", self)
+        self.view = self.tabs.currentWidget()
+        handler = PrintHandler(self)
+        handler.page = self.view
+        print_action.setStatusTip("Print current page")
+        print_action.triggered.connect(handler.printPreview)
+        navtb.addAction(print_action)
+        '''
 
         navtb.addSeparator()
 
@@ -201,15 +278,22 @@ class MainWindow(QMainWindow):
         about_btn.triggered.connect(self.about)
         navtb.addAction(about_btn)
 
-
         self.add_new_tab(QUrl(""), 'Blank')
-
         self.show()
-
         self.setWindowTitle("WMS Assistant")
         self.setWindowIcon(QIcon(os.path.join(res_dir, 'ma-icon-64.png')))
 
-    
+    def test(self):
+        handler = self.tabs.currentWidget().page()
+        print (type(handler))
+
+    def print_page(self):
+        printer = QPrinter(QPrinter.HighResolution)
+        dialog = QPrintDialog(printer, self)
+        screen = self.tabs.currentWidget()
+        if dialog.exec_() == QPrintDialog.Accepted:
+            self.tabs.currentWidget().print_(printer)
+            
 
     def navigate_terminal(self):
         self.tabs.currentWidget().setUrl(QUrl("http://"+server+"/"+term_app_path+"/"))
@@ -242,7 +326,7 @@ class MainWindow(QMainWindow):
 
         if qurl is None:
             qurl = QUrl('')
-
+        
         browser = QWebEngineView()
         browser.setUrl(qurl)
         i = self.tabs.addTab(browser, label)
@@ -258,6 +342,13 @@ class MainWindow(QMainWindow):
                                      self.tabs.setTabText(i, browser.page().title()))
         logger().info(" | "+date_log+" | Open new empty tab | Username: "+os.getlogin())
 
+        self.shortcut_open = QShortcut(QKeySequence('Ctrl+p'), self)
+        self.view = browser.page()
+        handler = PrintHandler(self)
+        handler.page = self.view
+        self.shortcut_open.activated.connect(handler.printPreview)
+
+    
     def tab_open_doubleclick(self, i):
         if i == -1:  # No tab under the click
             self.add_new_tab()
@@ -277,18 +368,17 @@ class MainWindow(QMainWindow):
         if browser != self.tabs.currentWidget():
             # If this signal is not from the current tab, ignore
             return
-
+        self.shortcut_open = QShortcut(QKeySequence('Ctrl+p'), self)
+        self.view = browser.page()
+        handler = PrintHandler(self)
+        handler.page = self.view
+        self.shortcut_open.activated.connect(handler.printPreview)
         title = self.tabs.currentWidget().page().title()
         self.setWindowTitle("%s - WMS Assistant" % title)
-
-    
 
     def about(self):
         dlg = AboutDialog()
         dlg.exec_()
-
-    
-   
 
     def navigate_to_url(self):  # Does not receive the Url
         q = QUrl(self.urlbar.text())
@@ -310,10 +400,15 @@ class MainWindow(QMainWindow):
         else:
             # Insecure padlock icon
             self.httpsicon.setPixmap(QPixmap(os.path.join(res_dir, 'lock-nossl.png')))
-
+        self.shortcut_open = QShortcut(QKeySequence('Ctrl+p'), self)
+        self.view = browser.page()
+        handler = PrintHandler(self)
+        handler.page = self.view
+        self.shortcut_open.activated.connect(handler.printPreview)
         self.urlbar.setText(q.toString())
         self.urlbar.setCursorPosition(0)
-
+    
+    
 
 app = QApplication(sys.argv)
 app.setApplicationName("WMS Assistant")

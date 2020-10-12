@@ -1,0 +1,6 @@
+venv/
+.vscode/
+logs/*
+target/
+temp/
+src/main/python/__pycache__/*
