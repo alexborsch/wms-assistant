@@ -4,3 +4,4 @@ logs/*
 target/
 temp/
 src/main/python/__pycache__/*
+*.json

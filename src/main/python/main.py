@@ -21,13 +21,6 @@ import datetime
 
 from PyQt5.QtPrintSupport import QPrintDialog, QPrinter, QPrintPreviewDialog
 
-'''
-from PyQt5.QtCore import pyqtSlot, QEventLoop, QObject, QPointF, QUrl
-from PyQt5.QtGui import QPainter
-from PyQt5.QtWidgets import QApplication, QDialog, QPushButton, QVBoxLayout, QWidget
-from PyQt5.QtPrintSupport import QPrintDialog, QPrinter, QPrintPreviewDialog
-from PyQt5.QtWebEngineWidgets import QWebEnginePage, QWebEngineView
-'''
 
 now = datetime.datetime.now()
 global date_log
@@ -209,22 +202,14 @@ class MainWindow(QMainWindow):
         self.addToolBar(navtb)
 
         '''Shortcuts'''
-        '''
+        
         self.shortcut_open = QShortcut(QKeySequence('F2'), self)
-        self.shortcut_open.activated.connect(self.shortcut_f2)
-        '''
+        self.view = self.tabs.currentWidget()
+        handler = PrintHandler(self)
+        handler.page = self.view
+        self.shortcut_open.activated.connect(handler.printPreview)
+        
 
-        '''
-        back_btn = QAction(QIcon(os.path.join(res_dir, 'arrow-180.png')), "Назад", self)
-        back_btn.setStatusTip("Назад")
-        back_btn.triggered.connect(lambda: self.tabs.currentWidget().back())
-        navtb.addAction(back_btn)
-
-        next_btn = QAction(QIcon(os.path.join(res_dir, 'arrow-000.png')), "Вперёд", self)
-        next_btn.setStatusTip("Вперёд")
-        next_btn.triggered.connect(lambda: self.tabs.currentWidget().forward())
-        navtb.addAction(next_btn)
-        '''
         reload_btn = QAction(QIcon(os.path.join(res_dir, 'arrow-circle-315.png')), "Обновить", self)
         reload_btn.setStatusTip("Обновить страницу")
         reload_btn.triggered.connect(lambda: self.tabs.currentWidget().reload())
